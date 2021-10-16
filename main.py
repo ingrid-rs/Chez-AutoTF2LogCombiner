@@ -2,6 +2,7 @@
 from io import BytesIO, StringIO
 import zipfile
 import urllib.request as urllib2
+import urllib.parse as ulparse
 import codecs
 import requests
 import time
@@ -10,7 +11,7 @@ import webbrowser
 import json
 import os.path
 from collections import OrderedDict
-from distutils.version import LooseVersion
+# from distutils.version import LooseVersion
 
 
 def get_important(log, experimental):
@@ -28,7 +29,7 @@ def get_important(log, experimental):
 
     for line in log:
         if lc == 0:
-            out = line+"\n"
+            out = line + "\n"
         t = line.split(": ")
         if len(t) > 1:
             tcl = t[1]
@@ -43,12 +44,11 @@ def get_important(log, experimental):
         lc += 1
 
     if endline == 0:
-        endline = lc-1
-
+        endline = lc - 1
 
     # minimize the log a tiny bit
     if experimental:
-        lc = len(log)-1
+        lc = len(log) - 1
         for line in reversed(log):
             t = line.split(": ")
             if len(t) > 1:
@@ -56,11 +56,11 @@ def get_important(log, experimental):
                 if tcl[0] == '"':
                     eventname = tcl[1:].split("><")[0]
                     for n in knownnames:
-                        if lc+1000 < endline:
-                            log[lc] = log[lc].replace(n, n[:1]+"<"+"".join(n.split("<")[-1:]))
+                        if lc + 1000 < endline:
+                            log[lc] = log[lc].replace(n, n[:1] + "<" + "".join(n.split("<")[-1:]))
                     if len(eventname) > 0:
-                        if eventname+">" not in knownnames:
-                            knownnames.append(eventname+">")
+                        if eventname + ">" not in knownnames:
+                            knownnames.append(eventname + ">")
             lc -= 1
 
     for line in log[startline:endline]:
@@ -71,8 +71,12 @@ def get_important(log, experimental):
 
 
 def getlog(url):
-    logid = urllib2.urlparse(url).path.split("/")[1]
-    myzipfile = zipfile.ZipFile(BytesIO(urllib2.urlopen("http://logs.tf/logs/log_"+logid+".log.zip").read()), "r")
+    logid = ulparse.urlsplit(url).path.split("/")[1]
+    try:
+        logid = logid.decode()
+    except (UnicodeDecodeError, AttributeError):
+        pass
+    myzipfile = zipfile.ZipFile(BytesIO(urllib2.urlopen("https://logs.tf/logs/log_" + logid + ".log.zip").read()), "r")
     out = []
     for name in myzipfile.namelist():
         with myzipfile.open(name, "r") as readfile:
@@ -87,34 +91,35 @@ def getmap(url):
 
 def loadsettings():
     i = 0
-    with open("settings") as f:
-        ro = f.read().split("\n")
+    with open("settings") as file:
+        ro = file.read().split("\n")
     for t in op:
         options[t] = ro[i]
         i += 1
 
 
-def optmenu(question, list):
-    maxv = len(list)
+def optmenu(question, option_list):
+    maxv = len(option_list)
     accepted = False
     while not accepted:
         cur = 1
         print(question)
-        for opt in list:
+        for opt in option_list:
             print("   " + str(cur) + ")   - " + opt)
-            cur+=1
+            cur += 1
         a = input()
         if a.isdigit():
             a = int(a)
-            if a > 0 and a <= maxv:
-                return a-1
+            if 0 < a <= maxv:
+                return a - 1
             else:
                 print("Your choice is outside the range")
         else:
             print("Please input a number")
 
+
 def sizeof_fmt(num, suffix='B'):
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
@@ -138,24 +143,27 @@ def interface():
         experimental = True
     else:
         experimental = False
-    while(appending):
+    while appending:
         print("Paste the log you want to upload:")
         tmplog = input()
-        u = urllib2.urlparse(tmplog)
+        u = ulparse.urlparse(tmplog)
         cont = False
         if (u.netloc == "www.logs.tf" or u.netloc == "logs.tf") and u.path.split("/")[1].isdigit():
             clog = get_important(getlog(tmplog), experimental)
-            print("Size of this log: "+sizeof_fmt(len(clog.encode('utf-8'))))
-            if(wholesize + len(clog.encode('utf-8')) > 5 * 1000 * 1000):
-                a = optmenu("File would be bigger than 5 MB - But it seems the API doesn't enforce it, so feel free to continue.", ["Continue", "Abort", "Ignore this log and append another log", "Combine the previous logs"])
+            print("Size of this log: " + sizeof_fmt(len(clog.encode('utf-8'))))
+            if wholesize + len(clog.encode('utf-8')) > 5 * 1000 * 1000:
+                a = optmenu(
+                    "File would be bigger than 5 MB - But it seems the API doesn't enforce it, so feel free to "
+                    "continue.",
+                    ["Continue", "Abort", "Ignore this log and append another log", "Combine the previous logs"])
                 if a == 0:
                     cont = True
                 if a == 1:
                     exit()
                 if a == 3:
                     sorted(logs, key=timesort)
-                    for l in logs:
-                        outlog += l
+                    for log in logs:
+                        outlog += log
                     appending = False
             else:
                 cont = True
@@ -169,21 +177,23 @@ def interface():
                 a = optmenu("Do you want to", ["Append another log", "Combine the logs"])
                 if a == 1:
                     sorted(logs, key=timesort)
-                    for l in logs:
-                        outlog += l
+                    for log in logs:
+                        outlog += log
                     appending = False
 
         else:
             print("Invalid URL supplied - try again")
-    print("Size of all logs: "+sizeof_fmt(wholesize))
+    print("Size of all logs: " + sizeof_fmt(wholesize))
     key = options["k"]
     print("Please enter a title for your log (max 40 characters)")
     title = input()
 
     if options["o"] == "t":
-        outlog += outlog.split("\n")[-2][:24] + ' "Jack\'s Log Combiner<0><Console><Console>" say "The following logs were combined: ' + " & ".join(ids) + '"\n'
+        outlog += outlog.split("\n")[-2][
+                  :24] + ' "Jack\'s Log Combiner<0><Console><Console>" say "The following logs were combined: ' + \
+                  " & ".join(ids) + '"\n'
 
-    mape = "Error"
+    # mape = "Error"
     if options["m"] == "t":
         try:
             maps = list(OrderedDict.fromkeys(maps))
@@ -204,9 +214,9 @@ def interface():
                 elif len(",".join(nmaps)) < 25:
                     mape = ",".join(nmaps)
                 else:
-                    raise Exception("We can't make the mapname small enough")
+                    raise RuntimeError("We can't make the mapname small enough")
 
-        except Exception:
+        except RuntimeError:
             print("An error happened parsing the maps, please enter the map now yourself.")
             print("Please enter the maps (max 24 chars)")
             mape = input()
@@ -224,12 +234,13 @@ def interface():
     files = {
         "logfile": StringIO(outlog)
     }
-    r = requests.post("http://logs.tf/upload", data=payload, files=files)
+    r = requests.post("https://logs.tf/upload", data=payload, files=files)
     x = json.loads(r.text)
     if x["success"]:
-        webbrowser.open_new_tab("https://www.logs.tf"+x["url"])
+        webbrowser.open_new_tab("https://www.logs.tf" + x["url"])
     else:
         print(r.text)
+
 
 with open("version") as f:
     v = "v" + f.read()
@@ -263,13 +274,17 @@ else:
         s.write(outopt)
     loadsettings()
 
-if options["u"] == "t":
-    try:
-        if LooseVersion(urllib2.urlopen("https://raw.githubusercontent.com/NetroScript/Jacks-TF2LogCombiner/master/version").read().decode()) > LooseVersion(v[1:]):
-            print("There is a new version available. Please download it at https://github.com/NetroScript/Jacks-TF2LogCombiner")
-            if optmenu("Do you want to download the file now?", ["Yes", "No"]) == 0:
-                webbrowser.open_new_tab("https://github.com/NetroScript/Jacks-TF2LogCombiner/archive/master.zip")
-    except Exception:
-        print("We were unable to check for updates")
+# if options["u"] == "t":
+#     try:
+#         if LooseVersion(urllib2.urlopen(
+#             "https://raw.githubusercontent.com/NetroScript/Jacks-TF2LogCombiner/master/version").read().decode()) > \
+#                 LooseVersion(v[1:]):
+#             print(
+#                 "There is a new version available. Please download it at "
+#                 "https://github.com/NetroScript/Jacks-TF2LogCombiner")
+#             if optmenu("Do you want to download the file now?", ["Yes", "No"]) == 0:
+#                 webbrowser.open_new_tab("https://github.com/NetroScript/Jacks-TF2LogCombiner/archive/master.zip")
+#     except Exception:
+#         print("We were unable to check for updates")
 
 interface()
