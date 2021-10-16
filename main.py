@@ -11,10 +11,10 @@ import webbrowser
 import json
 import os.path
 from collections import OrderedDict
-# from distutils.version import LooseVersion
+from distutils.version import LooseVersion
 
 
-def get_important(log, experimental):
+def get_important(log):
     startline = 0
     endline = 0
     lc = 0
@@ -40,43 +40,34 @@ def get_important(log, experimental):
                 tournamentexists = False
             elif tcl.startswith("Log file closed."):
                 endline = lc
-
         lc += 1
-
     if endline == 0:
         endline = lc - 1
 
     # minimize the log a tiny bit
-    if experimental:
-        lc = len(log) - 1
-        for line in reversed(log):
-            t = line.split(": ")
-            if len(t) > 1:
-                tcl = t[1]
-                if tcl[0] == '"':
-                    eventname = tcl[1:].split("><")[0]
-                    for n in knownnames:
-                        if lc + 1000 < endline:
-                            log[lc] = log[lc].replace(n, n[:1] + "<" + "".join(n.split("<")[-1:]))
-                    if len(eventname) > 0:
-                        if eventname + ">" not in knownnames:
-                            knownnames.append(eventname + ">")
-            lc -= 1
-
+    lc = len(log) - 1
+    for line in reversed(log):
+        t = line.split(": ")
+        if len(t) > 1:
+            tcl = t[1]
+            if tcl[0] == '"':
+                eventname = tcl[1:].split("><")[0]
+                for n in knownnames:
+                    if lc + 1000 < endline:
+                        log[lc] = log[lc].replace(n, n[:1] + "<" + "".join(n.split("<")[-1:]))
+                if len(eventname) > 0:
+                    if eventname + ">" not in knownnames:
+                        knownnames.append(eventname + ">")
+        lc -= 1
     for line in log[startline:endline]:
-        if not experimental or not ('triggered "shot_hit"' in line or 'triggered "shot_fired"' in line):
+        if not ('triggered "shot_hit"' in line or 'triggered "shot_fired"' in line):
             out += line
-
     return out
 
 
-def getlog(url):
-    logid = ulparse.urlsplit(url).path.split("/")[1]
-    try:
-        logid = logid.decode()
-    except (UnicodeDecodeError, AttributeError):
-        pass
-    myzipfile = zipfile.ZipFile(BytesIO(urllib2.urlopen("https://logs.tf/logs/log_" + logid + ".log.zip").read()), "r")
+def getlog(logid):
+    myzipfile = zipfile.ZipFile(BytesIO(urllib2.urlopen(
+        "https://logs.tf/logs/log_" + str(logid) + ".log.zip").read()), "r")
     out = []
     for name in myzipfile.namelist():
         with myzipfile.open(name, "r") as readfile:
@@ -98,15 +89,12 @@ def loadsettings():
         i += 1
 
 
-def optmenu(question, option_list):
-    maxv = len(option_list)
-    accepted = False
-    while not accepted:
-        cur = 1
+def optmenu(question, option):
+    maxv = len(option)
+    while True:
         print(question)
-        for opt in option_list:
-            print("   " + str(cur) + ")   - " + opt)
-            cur += 1
+        for i in range(len(option)):
+            print("   " + str(i + 1) + ".  " + option[i])
         a = input()
         if a.isdigit():
             a = int(a)
@@ -118,82 +106,39 @@ def optmenu(question, option_list):
             print("Please input a number")
 
 
-def sizeof_fmt(num, suffix='B'):
-    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
-
-
 def timesort(log):
     times = log[2:23]
     return time.mktime(datetime.datetime.strptime(times, "%m/%d/%Y - %H:%M:%S").timetuple())
 
 
 def interface():
-    appending = True
     logs = []
     maps = []
     ids = []
-    wholesize = 0
     outlog = ""
-    a = optmenu("Do you want to use experimental mode for further minifying? (Expect bugs)", ["No", "Yes"])
-    if a == 1:
-        experimental = True
-    else:
-        experimental = False
-    while appending:
-        print("Paste the log you want to upload:")
-        tmplog = input()
-        u = ulparse.urlparse(tmplog)
-        cont = False
-        if (u.netloc == "www.logs.tf" or u.netloc == "logs.tf") and u.path.split("/")[1].isdigit():
-            clog = get_important(getlog(tmplog), experimental)
-            print("Size of this log: " + sizeof_fmt(len(clog.encode('utf-8'))))
-            if wholesize + len(clog.encode('utf-8')) > 5 * 1000 * 1000:
-                a = optmenu(
-                    "File would be bigger than 5 MB - But it seems the API doesn't enforce it, so feel free to "
-                    "continue.",
-                    ["Continue", "Abort", "Ignore this log and append another log", "Combine the previous logs"])
-                if a == 0:
-                    cont = True
-                if a == 1:
-                    exit()
-                if a == 3:
-                    sorted(logs, key=timesort)
-                    for log in logs:
-                        outlog += log
-                    appending = False
-            else:
-                cont = True
-            if cont:
-                if options["m"] == "t":
-                    maps.append(getmap(tmplog))
-                if options["o"] == "t":
-                    ids.append("https://logs.tf/" + u.path.split("/")[1])
-                logs.append(clog)
-                wholesize += len(clog.encode('utf-8'))
-                a = optmenu("Do you want to", ["Append another log", "Combine the logs"])
-                if a == 1:
-                    sorted(logs, key=timesort)
-                    for log in logs:
-                        outlog += log
-                    appending = False
 
-        else:
-            print("Invalid URL supplied - try again")
-    print("Size of all logs: " + sizeof_fmt(wholesize))
+    nr = input("How many logs do you want to combine? ")
+    raw_logs = json.loads(urllib2.urlopen(
+        "https://logs.tf/api/v1/log?player=" + str(steamid) + "&limit=" + str(nr)).read())["logs"]
+
+    for raw_log in raw_logs:
+        logid = raw_log["id"]
+        clog = get_important(getlog(logid))
+        logs.append(clog)
+    sorted(logs, key=timesort)
+    for log in logs:
+        outlog += log
+
     key = options["k"]
     print("Please enter a title for your log (max 40 characters)")
     title = input()
 
     if options["o"] == "t":
         outlog += outlog.split("\n")[-2][
-                  :24] + ' "Jack\'s Log Combiner<0><Console><Console>" say "The following logs were combined: ' + \
+                  :24] + ' "Auto Log Combiner<0><Console><Console>" say "The following logs were combined: ' + \
                   " & ".join(ids) + '"\n'
 
-    # mape = "Error"
+    mape = "Error"
     if options["m"] == "t":
         try:
             maps = list(OrderedDict.fromkeys(maps))
@@ -228,7 +173,7 @@ def interface():
         "title": title[0:40],
         "map": mape[0:24],
         "key": str(key),
-        "uploader": "Jack's Log Combiner " + v + (" [Experimental]" if experimental else "")
+        "uploader": "Auto Log Combiner " + version
     }
 
     files = {
@@ -243,48 +188,12 @@ def interface():
 
 
 with open("version") as f:
-    v = "v" + f.read()
+    version = "v" + f.read()
 
-options = {}
 op = ["u", "m", "o", "k"]
+options = {}
 if os.path.isfile("settings"):
     loadsettings()
 
-else:
-    o = []
-    print("Seems like this is the first time using this script for you.")
-    print("That's why you can choose some basic actions now.")
-    if optmenu("Do you want that this script checks for updates?", ["Yes", "No"]) == 0:
-        o.append("t")
-    else:
-        o.append("f")
-    if optmenu("Do you want that this script tries to automatically generate the map names?", ["Yes", "No"]) == 0:
-        o.append("t")
-    else:
-        o.append("f")
-    if optmenu("Do you want that a chat message with the source logs is created?", ["Yes", "No"]) == 0:
-        o.append("t")
-    else:
-        o.append("f")
-    print("Please enter your Logs.tf API - Key")
-    o.append(input())
-    print("If you entered any wrong settings or want to change them, just delete the settings file.")
-    outopt = "\n".join(o)
-    with open("settings", "w") as s:
-        s.write(outopt)
-    loadsettings()
-
-# if options["u"] == "t":
-#     try:
-#         if LooseVersion(urllib2.urlopen(
-#             "https://raw.githubusercontent.com/NetroScript/Jacks-TF2LogCombiner/master/version").read().decode()) > \
-#                 LooseVersion(v[1:]):
-#             print(
-#                 "There is a new version available. Please download it at "
-#                 "https://github.com/NetroScript/Jacks-TF2LogCombiner")
-#             if optmenu("Do you want to download the file now?", ["Yes", "No"]) == 0:
-#                 webbrowser.open_new_tab("https://github.com/NetroScript/Jacks-TF2LogCombiner/archive/master.zip")
-#     except Exception:
-#         print("We were unable to check for updates")
-
+steamid = 76561198150315584
 interface()
