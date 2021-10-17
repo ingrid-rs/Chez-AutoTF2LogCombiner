@@ -111,32 +111,124 @@ def timesort(log):
     return time.mktime(datetime.datetime.strptime(times, "%m/%d/%Y - %H:%M:%S").timetuple())
 
 
+def usteamid_to_commid(usteamid):
+    steamid64ident = 76561197960265728
+    for ch in ['[', ']']:
+        if ch in usteamid:
+            usteamid = usteamid.replace(ch, '')
+    usteamid_split = usteamid.split(':')
+    commid = int(usteamid_split[2]) + steamid64ident
+    return commid
+
+
+def teamtag(usteamids, gamemode):
+    min_count = (len(usteamids) + 1) // 2
+    count_teams = {}
+
+    for usteamid in usteamids:
+        steamid = usteamid_to_commid(usteamid)
+        hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
+       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+       'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+       'Accept-Encoding': 'none',
+       'Accept-Language': 'en-US,en;q=0.8',
+       'Connection': 'keep-alive'}
+        teams = list.copy(json.loads(urllib2.urlopen(urllib2.Request(
+            "https://api.etf2l.org/player/" + str(steamid) + ".json", headers=hdr)).read())["player"]["teams"])
+        temp = list.copy(teams)
+        print(temp)
+        print(isinstance(temp, list))
+        for team in temp:
+            teamtype = team["type"]
+            if gamemode == teamtype \
+                    or gamemode == "6on6" and (teamtype == "National 6v6 Team" or teamtype == "LAN Team") \
+                    or gamemode == "Highlander" and teamtype == "National Highlander Team":
+                if teamtype in count_teams.keys():
+                    count_teams[gamemode] += 1
+                else:
+                    count_teams[gamemode] = 1
+
+    sorted(count_teams, key=count_teams.get, reverse=True)
+    most = next(iter(count_teams.items()))
+    time.sleep(5)
+    if most[1] >= min_count:
+        return most[0]
+    return "mix"
+
+
+def determine_gamemode(playercount):
+    if playercount < 3:
+        return "1on1"
+    if 4 <= playercount < 7:
+        return "2on2"
+    if 11 <= playercount < 17:
+        return "6on6"
+    if 17 <= playercount:
+        return "Highlander"
+    return "Other"
+
+
 def interface():
     logs = []
     maps = []
-    ids = []
+    log_ids = []
     outlog = ""
+    red_players = []
+    blue_players = []
+    gamemode = "Other"
 
-    nr = input("How many logs do you want to combine? ")
+    nr = int(input("How many logs do you want to combine? "))
+    while nr < 2:
+        nr = input("Input a number that is at least 2: ")
     raw_logs = json.loads(urllib2.urlopen(
-        "https://logs.tf/api/v1/log?player=" + str(steamid) + "&limit=" + str(nr)).read())["logs"]
+        "https://logs.tf/api/v1/log?player=" + str(def_steamid) + "&limit=" + str(nr)).read())["logs"]
+    raw_logs.reverse()
 
-    for raw_log in raw_logs:
-        logid = raw_log["id"]
-        clog = get_important(getlog(logid))
+    for i in range(len(raw_logs)):
+        log_id = raw_logs[i]["id"]
+        raw_log = json.loads(urllib2.urlopen("https://logs.tf/json/" + str(log_id)).read())
+        player_ids = list(raw_log["players"].keys())
+        for j in range(len(raw_log["players"])):
+            player_id = player_ids[j]
+            if i == 0:
+                if raw_log["players"][player_id]["team"] == "Red":
+                    red_players.append(player_id)
+                else:
+                    blue_players.append(player_id)
+            else:
+                if player_id not in red_players and player_id not in blue_players:
+                    new_team = raw_log["players"][player_id]["team"]
+                    other_players = list(raw_log["players"].keys())
+                    for k in range(1, len(raw_log["players"])):
+                        if raw_log["players"][other_players[k]]["team"] == new_team:
+                            if other_players[k] in red_players:
+                                red_players.append(player_id)
+                                break
+                            elif other_players[k] in blue_players:
+                                blue_players.append(player_id)
+                                break
+        if i == 0:
+            gamemode = determine_gamemode(len(red_players) + len(blue_players))
+
+        log_ids.append(log_id)
+        clog = get_important(getlog(log_id))
         logs.append(clog)
+
     sorted(logs, key=timesort)
     for log in logs:
         outlog += log
 
     key = options["k"]
-    print("Please enter a title for your log (max 40 characters)")
-    title = input()
+    # print("Please enter a title for your log (max 40 characters)")
+    # title = input()
+    red_tag = teamtag(red_players, gamemode)
+    blue_tag = teamtag(blue_players, gamemode)
+    title = red_tag + " vs " + blue_tag
 
     if options["o"] == "t":
         outlog += outlog.split("\n")[-2][
                   :24] + ' "Auto Log Combiner<0><Console><Console>" say "The following logs were combined: ' + \
-                  " & ".join(ids) + '"\n'
+                  " & ".join(log_ids) + '"\n'
 
     mape = "Error"
     if options["m"] == "t":
@@ -195,5 +287,5 @@ options = {}
 if os.path.isfile("settings"):
     loadsettings()
 
-steamid = 76561198150315584
+def_steamid = 76561198150315584
 interface()
