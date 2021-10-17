@@ -2,7 +2,7 @@
 from io import BytesIO, StringIO
 import zipfile
 import urllib.request as urllib2
-import urllib.parse as ulparse
+# import urllib.parse as ulparse
 import codecs
 import requests
 import time
@@ -11,7 +11,7 @@ import webbrowser
 import json
 import os.path
 from collections import OrderedDict
-from distutils.version import LooseVersion
+# from distutils.version import LooseVersion
 
 
 def get_important(log):
@@ -133,24 +133,21 @@ def teamtag(usteamids, gamemode):
        'Accept-Encoding': 'none',
        'Accept-Language': 'en-US,en;q=0.8',
        'Connection': 'keep-alive'}
-        teams = list.copy(json.loads(urllib2.urlopen(urllib2.Request(
-            "https://api.etf2l.org/player/" + str(steamid) + ".json", headers=hdr)).read())["player"]["teams"])
-        temp = list.copy(teams)
-        print(temp)
-        print(isinstance(temp, list))
-        for team in temp:
-            teamtype = team["type"]
-            if gamemode == teamtype \
-                    or gamemode == "6on6" and (teamtype == "National 6v6 Team" or teamtype == "LAN Team") \
-                    or gamemode == "Highlander" and teamtype == "National Highlander Team":
-                if teamtype in count_teams.keys():
-                    count_teams[gamemode] += 1
-                else:
-                    count_teams[gamemode] = 1
+        teams = json.loads(urllib2.urlopen(urllib2.Request(
+            "https://api.etf2l.org/player/" + str(steamid) + ".json", headers=hdr)).read())["player"]["teams"]
+        if teams is not None:
+            for team in teams:
+                teamtype = team["type"]
+                if gamemode == teamtype \
+                        or gamemode == "6on6" and (teamtype == "National 6v6 Team" or teamtype == "LAN Team") \
+                        or gamemode == "Highlander" and teamtype == "National Highlander Team":
+                    if team["tag"] in count_teams.keys():
+                        count_teams[team["tag"]] += 1
+                    else:
+                        count_teams[team["tag"]] = 1
 
-    sorted(count_teams, key=count_teams.get, reverse=True)
-    most = next(iter(count_teams.items()))
-    time.sleep(5)
+    count_teams = sorted(count_teams.items(), key=lambda x: x[1], reverse=True)
+    most = count_teams[0]
     if most[1] >= min_count:
         return most[0]
     return "mix"
@@ -223,7 +220,7 @@ def interface():
     # title = input()
     red_tag = teamtag(red_players, gamemode)
     blue_tag = teamtag(blue_players, gamemode)
-    title = red_tag + " vs " + blue_tag
+    title = blue_tag + " vs " + red_tag
 
     if options["o"] == "t":
         outlog += outlog.split("\n")[-2][
@@ -287,5 +284,5 @@ options = {}
 if os.path.isfile("settings"):
     loadsettings()
 
-def_steamid = 76561198150315584
+def_steamid = 76561198049835664
 interface()
