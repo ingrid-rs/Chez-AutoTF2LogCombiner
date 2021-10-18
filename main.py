@@ -11,6 +11,8 @@ import webbrowser
 import json
 import os.path
 from collections import OrderedDict
+
+
 # from distutils.version import LooseVersion
 
 
@@ -127,12 +129,12 @@ def teamtag(usteamids, gamemode):
 
     for usteamid in usteamids:
         steamid = usteamid_to_commid(usteamid)
-        hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
-       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-       'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
-       'Accept-Encoding': 'none',
-       'Accept-Language': 'en-US,en;q=0.8',
-       'Connection': 'keep-alive'}
+        hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)',
+               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+               'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+               'Accept-Encoding': 'none',
+               'Accept-Language': 'en-US,en;q=0.8',
+               'Connection': 'keep-alive'}
         teams = json.loads(urllib2.urlopen(urllib2.Request(
             "https://api.etf2l.org/player/" + str(steamid) + ".json", headers=hdr)).read())["player"]["teams"]
         if teams is not None:
@@ -165,6 +167,37 @@ def determine_gamemode(playercount):
     return "Other"
 
 
+def team_sort(raw_log, red_players, blue_players, isFirst):
+    player_ids = list(raw_log["players"].keys())
+    for j in range(len(raw_log["players"])):
+        player_id = player_ids[j]
+        if isFirst:
+            if raw_log["players"][player_id]["team"] == "Red":
+                red_players.append(player_id)
+            else:
+                blue_players.append(player_id)
+        else:
+            if player_id not in red_players and player_id not in blue_players:
+                new_team = raw_log["players"][player_id]["team"]
+                other_players = list(raw_log["players"].keys())
+                other_players.remove(player_id)
+                for other_player in other_players:
+                    if raw_log["players"][other_player]["team"] == new_team:
+                        if other_player in red_players:
+                            red_players.append(player_id)
+                            break
+                        elif other_player in blue_players:
+                            blue_players.append(player_id)
+                            break
+                for other_player in other_players:
+                    if other_player in red_players:
+                        blue_players.append(player_id)
+                        break
+                    elif other_player in blue_players:
+                        red_players.append(player_id)
+                        break
+
+
 def interface():
     logs = []
     maps = []
@@ -184,26 +217,7 @@ def interface():
     for i in range(len(raw_logs)):
         log_id = raw_logs[i]["id"]
         raw_log = json.loads(urllib2.urlopen("https://logs.tf/json/" + str(log_id)).read())
-        player_ids = list(raw_log["players"].keys())
-        for j in range(len(raw_log["players"])):
-            player_id = player_ids[j]
-            if i == 0:
-                if raw_log["players"][player_id]["team"] == "Red":
-                    red_players.append(player_id)
-                else:
-                    blue_players.append(player_id)
-            else:
-                if player_id not in red_players and player_id not in blue_players:
-                    new_team = raw_log["players"][player_id]["team"]
-                    other_players = list(raw_log["players"].keys())
-                    for k in range(1, len(raw_log["players"])):
-                        if raw_log["players"][other_players[k]]["team"] == new_team:
-                            if other_players[k] in red_players:
-                                red_players.append(player_id)
-                                break
-                            elif other_players[k] in blue_players:
-                                blue_players.append(player_id)
-                                break
+        team_sort(raw_log, red_players, blue_players, i == 0)
         if i == 0:
             gamemode = determine_gamemode(len(red_players) + len(blue_players))
 
@@ -284,5 +298,5 @@ options = {}
 if os.path.isfile("settings"):
     loadsettings()
 
-def_steamid = 76561198049835664
+def_steamid = 76561198150315584
 interface()
