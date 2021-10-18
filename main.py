@@ -11,8 +11,6 @@ import webbrowser
 import json
 import os.path
 from collections import OrderedDict
-
-
 # from distutils.version import LooseVersion
 
 
@@ -167,11 +165,11 @@ def determine_gamemode(playercount):
     return "Other"
 
 
-def team_sort(raw_log, red_players, blue_players, isFirst):
+def team_sort(raw_log, red_players, blue_players, is_first):
     player_ids = list(raw_log["players"].keys())
     for j in range(len(raw_log["players"])):
         player_id = player_ids[j]
-        if isFirst:
+        if is_first:
             if raw_log["players"][player_id]["team"] == "Red":
                 red_players.append(player_id)
             else:
@@ -217,10 +215,9 @@ def interface():
     for i in range(len(raw_logs)):
         log_id = raw_logs[i]["id"]
         raw_log = json.loads(urllib2.urlopen("https://logs.tf/json/" + str(log_id)).read())
-        team_sort(raw_log, red_players, blue_players, i == 0)
+        team_sort(raw_log, red_players, blue_players, i)
         if i == 0:
             gamemode = determine_gamemode(len(red_players) + len(blue_players))
-
         log_ids.append(log_id)
         clog = get_important(getlog(log_id))
         logs.append(clog)
@@ -230,8 +227,6 @@ def interface():
         outlog += log
 
     key = options["k"]
-    # print("Please enter a title for your log (max 40 characters)")
-    # title = input()
     red_tag = teamtag(red_players, gamemode)
     blue_tag = teamtag(blue_players, gamemode)
     title = blue_tag + " vs " + red_tag
@@ -276,6 +271,7 @@ def interface():
         "title": title[0:40],
         "map": mape[0:24],
         "key": str(key),
+        "name": "Chez",
         "uploader": "Auto Log Combiner " + version
     }
 
