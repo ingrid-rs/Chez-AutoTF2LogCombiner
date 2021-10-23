@@ -10,9 +10,6 @@ import datetime
 import webbrowser
 import json
 import os.path
-from collections import OrderedDict
-
-
 # from distutils.version import LooseVersion
 
 
@@ -230,8 +227,6 @@ def interface():
         outlog += log
 
     key = options["k"]
-    # print("Please enter a title for your log (max 40 characters)")
-    # title = input()
     red_tag = teamtag(red_players, gamemode)
     blue_tag = teamtag(blue_players, gamemode)
     title = blue_tag + " vs " + red_tag
@@ -266,6 +261,7 @@ def interface():
         "title": title[0:40],
         "map": mape[0:24],
         "key": str(key),
+        "name": "Chez",
         "uploader": "Auto Log Combiner " + version
     }
 
