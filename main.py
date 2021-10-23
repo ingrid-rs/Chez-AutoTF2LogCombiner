@@ -167,22 +167,22 @@ def determine_gamemode(playercount):
     return "Other"
 
 
-def team_sort(raw_log, red_players, blue_players, isFirst):
-    player_ids = list(raw_log["players"].keys())
-    for j in range(len(raw_log["players"])):
+def team_sort(all_players, red_players, blue_players, isFirst):
+    player_ids = list(all_players.keys())
+    for j in range(len(all_players)):
         player_id = player_ids[j]
         if isFirst:
-            if raw_log["players"][player_id]["team"] == "Red":
+            if all_players[player_id]["team"] == "Red":
                 red_players.append(player_id)
             else:
                 blue_players.append(player_id)
         else:
             if player_id not in red_players and player_id not in blue_players:
-                new_team = raw_log["players"][player_id]["team"]
-                other_players = list(raw_log["players"].keys())
+                new_team = all_players[player_id]["team"]
+                other_players = list(all_players.keys())
                 other_players.remove(player_id)
                 for other_player in other_players:
-                    if raw_log["players"][other_player]["team"] == new_team:
+                    if all_players[other_player]["team"] == new_team:
                         if other_player in red_players:
                             red_players.append(player_id)
                             break
@@ -217,13 +217,13 @@ def interface():
     for i in range(len(raw_logs)):
         log_id = raw_logs[i]["id"]
         raw_log = json.loads(urllib2.urlopen("https://logs.tf/json/" + str(log_id)).read())
-        team_sort(raw_log, red_players, blue_players, i == 0)
+        team_sort(raw_log["players"], red_players, blue_players, i == 0)
         if i == 0:
             gamemode = determine_gamemode(len(red_players) + len(blue_players))
-
         log_ids.append(log_id)
         clog = get_important(getlog(log_id))
         logs.append(clog)
+        maps.append(raw_logs[i]["map"])
 
     sorted(logs, key=timesort)
     for log in logs:
@@ -242,36 +242,26 @@ def interface():
                   " & ".join(log_ids) + '"\n'
 
     mape = "Error"
-    if options["m"] == "t":
-        try:
-            maps = list(OrderedDict.fromkeys(maps))
-            if len(" + ".join(maps)) < 25:
-                mape = " + ".join(maps)
-            elif len(",".join(maps)) < 25:
-                mape = ",".join(maps)
+    try:
+        nmaps = []
+        for m in maps:
+            name_l = m.split("_")
+            if len(name_l) == 2:
+                name = name_l[1]
             else:
-                nmaps = list()
-                for m in maps:
-                    p = m.split("_")
-                    if len(p) == 2:
-                        nmaps.append(p[1])
-                    else:
-                        nmaps.append("_".join(p[1:-1]))
-                if len(" + ".join(nmaps)) < 25:
-                    mape = " + ".join(nmaps)
-                elif len(",".join(nmaps)) < 25:
-                    mape = ",".join(nmaps)
-                else:
-                    raise RuntimeError("We can't make the mapname small enough")
+                name = " ".join(name_l[1:-1])
+            if name in mapnames_map.keys():
+                name = mapnames_map[name]
+            nmaps.append(name)
+        if len(" + ".join(nmaps)) < 25:
+            mape = " + ".join(nmaps)
+        else:
+            raise RuntimeError("We can't make the mapname small enough")
 
-        except RuntimeError:
-            print("An error happened parsing the maps, please enter the map now yourself.")
-            print("Please enter the maps (max 24 chars)")
-            mape = input()
-    else:
+    except RuntimeError:
+        print("An error happened parsing the maps.")
         print("Please enter the maps (max 24 chars)")
         mape = input()
-
     payload = {
         "title": title[0:40],
         "map": mape[0:24],
@@ -299,4 +289,9 @@ if os.path.isfile("settings"):
     loadsettings()
 
 def_steamid = 76561198150315584
+mapnames_map = {
+    "badlands": "blands", "badlands_pro": "blands", "prolands": "blands",
+    "granary": "gran", "granary_pro": "gran",
+    "viaduct_pro": "product", "snakewater": "snake", "gullywash": "gully", "metalworks": "metal"
+}
 interface()
