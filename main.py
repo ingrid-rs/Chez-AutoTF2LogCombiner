@@ -10,6 +10,7 @@ import datetime
 import webbrowser
 import json
 import os.path
+import datetime
 # from distutils.version import LooseVersion
 
 
@@ -75,25 +76,14 @@ def getlog(logid):
     return out
 
 
-def getmap(url):
-    return urllib2.urlopen(url).read().decode('utf-8').split('<h3 id="log-map">')[1].split("</h3>")[0]
-
-
-def loadsettings():
-    i = 0
-    with open("settings") as file:
-        ro = file.read().split("\n")
-    for t in op:
-        options[t] = ro[i]
-        i += 1
-
-
-def optmenu(question, option):
-    maxv = len(option)
+def optmenu(question, options=None):
+    if options is None:
+        options = ["Yes", "No"]
+    maxv = len(options)
     while True:
         print(question)
-        for i in range(len(option)):
-            print("   " + str(i + 1) + ".  " + option[i])
+        for i in range(len(options)):
+            print("   " + str(i + 1) + ".  " + options[i])
         a = input()
         if a.isdigit():
             a = int(a)
@@ -195,7 +185,7 @@ def team_sort(all_players, red_players, blue_players, isFirst):
                         break
 
 
-def interface():
+def interface(options):
     logs = []
     maps = []
     log_ids = []
@@ -208,7 +198,7 @@ def interface():
     while nr < 2:
         nr = input("Input a number that is at least 2: ")
     raw_logs = json.loads(urllib2.urlopen(
-        "https://logs.tf/api/v1/log?player=" + str(def_steamid) + "&limit=" + str(nr)).read())["logs"]
+        "https://logs.tf/api/v1/log?player=" + str(options["def_steamid"]) + "&limit=" + str(nr)).read())["logs"]
     raw_logs.reverse()
 
     for i in range(len(raw_logs)):
@@ -226,17 +216,16 @@ def interface():
     for log in logs:
         outlog += log
 
-    key = options["k"]
+    key = options["key"]
     red_tag = teamtag(red_players, gamemode)
     blue_tag = teamtag(blue_players, gamemode)
     title = blue_tag + " vs " + red_tag
 
-    if options["o"] == "t":
+    if options["outlog"] == "t":
         outlog += outlog.split("\n")[-2][
                   :24] + ' "Auto Log Combiner<0><Console><Console>" say "The following logs were combined: ' + \
                   " & ".join(log_ids) + '"\n'
 
-    mape = "Error"
     try:
         nmaps = []
         for m in maps:
@@ -245,8 +234,8 @@ def interface():
                 name = name_l[1]
             else:
                 name = " ".join(name_l[1:-1])
-            if name in mapnames_map.keys():
-                name = mapnames_map[name]
+            if name in options["short_maps"].keys():
+                name = options["short_maps"][name]
             nmaps.append(name)
         if len(" + ".join(nmaps)) < 25:
             mape = " + ".join(nmaps)
@@ -261,7 +250,6 @@ def interface():
         "title": title[0:40],
         "map": mape[0:24],
         "key": str(key),
-        "name": "Chez",
         "uploader": "Auto Log Combiner " + version
     }
 
@@ -276,18 +264,139 @@ def interface():
         print(r.text)
 
 
+def load_settings(options):
+    with open("settings") as file:
+        lines = file.read().split("\n")
+    current_key = ""
+    appending = False
+    for line in lines:
+        if line in options.keys():
+            current_key = line
+            if options[current_key] is not None:
+                appending = True
+            else:
+                appending = False
+        elif appending:
+            split_line = line.split(",")
+            options[current_key][split_line[0]] = split_line[1]
+        else:
+            options[current_key] = line
+
+
+def set_apikey(options):
+    print("Enter logs.tf API-key:")
+    options["key"] = input()
+
+
+def add_players(options):
+    adding_players = True
+    while adding_players:
+        print("Enter the SteamID64 of the player to be added:")
+        playerid = input()
+        print("Enter that player's nickname:")
+        playername = input()
+        options["players"][playername] = playerid
+        if optmenu("Do you want to add more players? "):
+            adding_players = False
+
+
+def set_def_player(options):
+    print("Which of the players do you want to use by default?")
+    msg = "Players: "
+    player_names = options["players"].keys()
+    for name in player_names:
+        msg += name + ", "
+    print(msg[0:-2])
+    while True:
+        answer = input()
+        if answer in player_names:
+            options["def_steamid"] = options["players"][answer]
+            break
+        print("Player name misspelt or hasn't been added yet.")
+
+
+def set_autocombine(options):
+    options["automaps"] = not bool(optmenu("Do you want the program to autocombine map names?"))
+
+
+def add_short_maps(options):
+    while True:
+        print("Enter the full mapname (without the prefix and suffix), or \"stop\" to quit:")
+        full = input()
+        if full == "stop":
+            break
+        print("Enter the short version of that mapname, or \"stop\" to quit:")
+        short = input()
+        if short == "stop":
+            break
+        options["short_maps"][full] = short
+
+
+def set_outlog(options):
+    options["outlog"] = not bool(optmenu("Do you want the program to print out a message with the combined logs?"))
+
+
+def write_settings(options):
+    out = ""
+    for option in options.keys():
+        out += option + "\n"
+        if isinstance(options[option], dict):
+            pairs = options[option].items()
+            for pair in pairs:
+                out += pair[0] + "," + pair[1] + "\n"
+        else:
+            out += str(options[option]) + "\n"
+    with open("settings", "w") as fl:
+        fl.write(out.rstrip())
+
+
 with open("version") as f:
     version = "v" + f.read()
 
-op = ["u", "m", "o", "k"]
-options = {}
-if os.path.isfile("settings"):
-    loadsettings()
+def_options = {"key": None, "players": {}, "def_steamid": None, "automaps": None, "short_maps": {}, "outlog": None}
 
-def_steamid = 76561198150315584
-mapnames_map = {
-    "badlands": "blands", "badlands_pro": "blands", "prolands": "blands",
-    "granary": "gran", "granary_pro": "gran",
-    "viaduct_pro": "product", "snakewater": "snake", "gullywash": "gully", "metalworks": "metal"
-}
-interface()
+if os.path.isfile("settings"):
+    load_settings(def_options)
+
+    if not optmenu("Do you want to change the saved settings? "):
+
+        if not optmenu("Do you want to change your API-key? "):
+            set_apikey(def_options)
+
+        if not optmenu("Do you want to save more players? "):
+            add_players(def_options)
+
+        if not optmenu("Do you want to change the default player? "):
+            set_def_player(def_options)
+
+        set_autocombine(def_options)
+
+        if not optmenu("Do you want to save more short names for maps? "):
+            add_short_maps(def_options)
+
+        set_outlog(def_options)
+
+        write_settings(def_options)
+
+else:
+    print("Running first-time setup.")
+    set_apikey(def_options)
+
+    print("The program will keep a short list of players to easily access their played logs.")
+    add_players(def_options)
+
+    print("The program will also remember one of the added players as the player whose logs to combine.")
+    set_def_player(def_options)
+
+    set_autocombine(def_options)
+
+    if def_options["automaps"]:
+        print("The program can keep a list of maps to shorten when autocombining map names,"
+              "e.g snakewater -> snake.")
+        add_short_maps(def_options)
+
+    set_outlog(def_options)
+
+    write_settings(def_options)
+
+interface(def_options)
