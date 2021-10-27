@@ -112,7 +112,11 @@ def team_sort(all_players, blue_players, red_players, isFirst):
             else:
                 temp_blue.append(player_id)
         else:
-            if player_id not in red_players and player_id not in blue_players:
+            if player_id in red_players:
+                temp_red.append(player_id)
+            elif player_id in blue_players:
+                temp_blue.append(player_id)
+            else:
                 new_team = all_players[player_id]["team"]
                 other_players = list(all_players.keys())
                 other_players.remove(player_id)
@@ -137,6 +141,8 @@ def team_sort(all_players, blue_players, red_players, isFirst):
 # given two teams from two different games,
 # returns whether those teams could be the same team (from the same scrim) based on a biased algorithm
 def are_same_team(new_team, old_team):
+    if not new_team or not old_team:
+        return False
     same_count = len(set(new_team).intersection(old_team))
     min_count = (len(new_team) + 1) // 2 if len(new_team) <= len(old_team) else (len(old_team) + 1) // 2
     return same_count >= min_count

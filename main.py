@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# from distutils.version import LooseVersion
 
 from cli import cl_interface
 

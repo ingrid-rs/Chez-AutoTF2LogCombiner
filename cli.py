@@ -69,7 +69,8 @@ def cl_interface(options, version):
 
     raw_logs = json.loads(urllib2.urlopen(
         "https://logs.tf/api/v1/log?player=" + str(options["def_steamid"]) + "&limit=" + str(nr)).read())["logs"]
-    raw_logs.reverse()
+    if not options["smart_combine"]:
+        raw_logs.reverse()
 
     prev_log_date = 0
     old_blue, old_red = [], []
