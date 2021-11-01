@@ -78,7 +78,7 @@ def cl_interface(options, version):
         log_id = raw_logs[i]["id"]
         if options["smart_combine"]:
             log_date = datetime.datetime.utcfromtimestamp(raw_logs[i]["date"])
-            if i > 0 and (log_date - prev_log_date) / datetime.timedelta(seconds=3600) > 1:
+            if i > 0 and (log_date - prev_log_date) / datetime.timedelta(seconds=3600) > 1.5:
                 break
             prev_log_date = log_date
         raw_log = json.loads(urllib2.urlopen("https://logs.tf/json/" + str(log_id)).read())
