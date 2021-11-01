@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from other_logic import str_to_bool
-from cli import optmenu
 
 
 def load_settings(options):
