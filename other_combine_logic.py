@@ -116,7 +116,7 @@ def combine_map_names(maps, shortened_maps):
             name = name_l[1]
         else:
             name = " ".join(name_l[1:-1])
-        if name in shortened_maps.keys():
+        if name.lower() in shortened_maps.keys():
             name = shortened_maps[name]
         nmaps.append(name)
     if len(" + ".join(nmaps)) < 25:
