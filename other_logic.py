@@ -34,7 +34,7 @@ def str_to_bool(string):
 
 def upload_logs(first_tag, second_tag, map_name, api_key, version, combined_logs):
     payload = {
-        "title": (first_tag + " + " + second_tag)[0:40],
+        "title": (first_tag + " vs " + second_tag)[0:40],
         "map": map_name[0:24],
         "key": str(api_key),
         "uploader": "Auto Log Combiner " + version
