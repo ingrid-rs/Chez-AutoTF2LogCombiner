@@ -109,7 +109,7 @@ def are_same_team(new_team, old_team):
 
 
 def combine_map_names(maps, shortened_maps):
-    nmaps = []
+    nmaps = set()
     for m in maps:
         name_l = m.split("_")
         if len(name_l) == 2:
@@ -118,7 +118,7 @@ def combine_map_names(maps, shortened_maps):
             name = " ".join(name_l[1:-1])
         if name.lower() in shortened_maps.keys():
             name = shortened_maps[name]
-        nmaps.append(name)
+        nmaps.add(name)
     if len(" + ".join(nmaps)) < 25:
         return " + ".join(nmaps)
     else:
